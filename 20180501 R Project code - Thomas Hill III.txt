@@ -1,0 +1,390 @@
+setwd("%%pathname")
+#getwd()
+project_data <- read.csv("%%filename", header = TRUE, stringsAsFactors = FALSE) #bring in the data
+
+dim(project_data) #118652x145
+
+set.seed(42)
+#reduce_to_make_processing_easier <- sample(x = 1:(dim(project_data)[1]), size = 2, replace = FALSE)
+reduce_to_make_processing_easier <- sample(x = c(TRUE,FALSE), size = (dim(project_data)[1]), rep=TRUE, prob = c(.02,.98))
+project_data_reduced1 <- project_data[reduce_to_make_processing_easier,]
+dim(project_data_reduced1) #2441x145
+
+#clear out qualitative columns
+#Remove columns that cannot be properly completely populated
+#like "months since previous delinquency" or
+#verification_status_joint"
+#Note that I am also removing the "bc_util" column
+#This column is desccribed as "Ratio of total 
+#current balance to high credit/credit limit 
+#for all bankcard accounts." It contains values
+#from .1 to 181. All of those are potentially
+#correct, but it's hard to tell which are actual
+#ratios, which are percents, and which are wrong.
+#I'm leaving in the all_util, revol_util, and il_util
+#columns because they appear to be intended to be 
+#percentages (out of 100).
+#emp_length has values <1 year, 1 year, 2 years, 3 years, 4 years, 5 years,
+#6 years, 7 years, 8 years, 9 years, 10+ years
+#<1 year could be any value up to that point. 0, .5 year, whatever
+#10+ years has a much larger range
+#n/a should be discarded
+#The total of loans listed that have one of these three lengths is 60836
+#Because I cannot be specific about this value I plan to eliminate the 
+#column from the file
+del_cols_1 <- c("id","member_id","grade","sub_grade","home_ownership",
+                "policy_code","collection_recovery_fee","purpose",
+                "loan_status","verification_status","home_ownership",
+                "emp_title","issue_d","url","desc","title","zip_code",
+                "addr_state","earliest_cr_line","last_pymnt_d",
+                "next_pymnt_d","last_credit_pull_d","hardship_start_date",
+                "hardship_end_date","payment_plan_start_date",
+                "debt_settlement_flag_date","settlement_date",
+                "mths_since_last_delinq","mths_since_last_record",
+                "annual_inc_joint","dti_joint","verification_status_joint",
+                "revol_bal_joint", "sec_app_earliest_cr_line",
+                "sec_app_inq_last_6mths", "sec_app_mort_acc",
+                "sec_app_open_acc", "sec_app_revol_util",
+                "sec_app_open_act_il", "sec_app_num_rev_accts",
+                "sec_app_chargeoff_within_12_mths",
+                "sec_app_collections_12_mths_ex_med",
+                "sec_app_mths_since_last_major_derog",
+                "hardship_type", "hardship_reason",	"hardship_status",
+                "deferral_term", "hardship_amount",	"hardship_start_date",
+                "hardship_end_date", "payment_plan_start_date",
+                "hardship_length", "hardship_dpd", "hardship_loan_status",
+                "orig_projected_additional_accrued_interest",
+                "hardship_payoff_balance_amount",
+                "hardship_last_payment_amount", "debt_settlement_flag_date",
+                "settlement_status", "settlement_date",
+                "settlement_amount", "settlement_percentage",
+                "settlement_term", "mths_since_last_major_derog",
+                "bc_open_util", "bc_util", "mths_since_recent_revol_delinq",
+                "mths_since_recent_bc_dlq", "emp_length")
+project_data_reduced <- project_data_reduced1[,!(names(project_data_reduced1) %in% del_cols_1)]
+dim(project_data_reduced) #2441x83
+
+#reset binary columns to a 1/0
+dsf <- which(colnames(project_data_reduced)=="debt_settlement_flag")
+for (row in 1:dim(project_data_reduced)[1]) {
+  if (project_data_reduced[row,dsf] == "N") {
+    project_data_reduced[row,dsf] = 0
+  }
+  else {
+    project_data_reduced[row,dsf] = 1
+  }
+}
+project_data_reduced[,dsf] <- sapply(project_data_reduced[,dsf], as.integer)
+
+
+dm <- which(colnames(project_data_reduced)=="disbursement_method")
+for (row in 1:dim(project_data_reduced)[1]) {
+  if (project_data_reduced[row,dm] == "DirectPay") {
+    project_data_reduced[row,dm] = 0
+  }
+  else {
+    project_data_reduced[row,dm] = 1
+  }
+}
+project_data_reduced[,dm] <- sapply(project_data_reduced[,dm], as.integer)
+
+
+hf <- which(colnames(project_data_reduced)=="hardship_flag")
+for (row in 1:dim(project_data_reduced)[1]) {
+  if (project_data_reduced[row,hf] == "N") {
+    project_data_reduced[row,hf] = 0
+  }
+  else {
+    project_data_reduced[row,hf] = 1
+  }
+}
+project_data_reduced[,hf] <- sapply(project_data_reduced[,hf], as.integer)
+
+
+apt <- which(colnames(project_data_reduced)=="application_type")
+for (row in 1:dim(project_data_reduced)[1]) {
+  if (project_data_reduced[row,apt] == "Joint app") {
+    project_data_reduced[row,apt] = 0
+  }
+  else {
+    project_data_reduced[row,apt] = 1
+  }
+}
+project_data_reduced[,apt] <- sapply(project_data_reduced[,apt], as.integer)
+
+
+ils <- which(colnames(project_data_reduced)=="initial_list_status")
+for (row in 1:dim(project_data_reduced)[1]) {
+  if (project_data_reduced[row,ils] == "w") {
+    project_data_reduced[row,ils] = 0
+  }
+  else {
+    project_data_reduced[row,ils] = 1
+  }
+}
+project_data_reduced[,ils] <- sapply(project_data_reduced[,ils], as.integer)
+
+
+pp <- which(colnames(project_data_reduced)=="pymnt_plan")
+for (row in 1:dim(project_data_reduced)[1]) {
+  if (project_data_reduced[row,pp] == "n") {
+    project_data_reduced[row,pp] = 0
+  }
+  else {
+    project_data_reduced[row,pp] = 1
+  }
+}
+project_data_reduced[,pp] <- sapply(project_data_reduced[,pp], as.integer)
+
+#remove percentage signs
+ir <- which(colnames(project_data_reduced)=="int_rate")
+for (row in 1:dim(project_data_reduced)[1]) {
+  percent_sign <- regexpr("%", project_data_reduced[row,ir])
+  percent1 <- as.double(substr(project_data_reduced[row,ir],1,percent_sign-1))
+  project_data_reduced[row,ir] <- percent1
+}
+project_data_reduced[,ir] <- sapply(project_data_reduced[,ir], as.double)
+
+ru <- which(colnames(project_data_reduced)=="revol_util")
+for (row in 1:dim(project_data_reduced)[1]) {
+  percent_sign <- regexpr("%", project_data_reduced[row,ru])
+  percent2 <- as.double(substr(project_data_reduced[row,ru],1,percent_sign-1))
+  project_data_reduced[row,ru] <- percent2
+}
+project_data_reduced[,ru] <- sapply(project_data_reduced[,ru], as.double)
+
+#set "term" to be a single number
+ter <- which(colnames(project_data_reduced)=="term")
+for (row in 1:dim(project_data_reduced)[1]) {
+  months_string_index <- regexpr('months', project_data_reduced[row,ter])
+  project_data_reduced[row,ter] <- substr(project_data_reduced[row,ter],2, months_string_index-2)
+}
+project_data_reduced[,ter] <- sapply(project_data_reduced[,ter], as.integer)
+
+
+#Further removing of columns
+
+#These columns are linear combos of other columns
+#These should be deleted.
+del_cols_2 <- c("funded_amnt","funded_amnt_inv", "pymnt_plan", "recoveries", "application_type",
+                "acc_now_delinq", "delinq_amnt", "num_tl_120dpd_2m", "num_tl_30dpd",
+                "tax_liens", "hardship_flag", "debt_settlement_flag")
+project_data_reduced <- project_data_reduced[,!(names(project_data_reduced) %in% del_cols_2)]
+dim(project_data_reduced) #2441x71
+
+write.csv(x = project_data_reduced, file = "pdr1.csv")
+
+dim(project_data_reduced) #2441x71
+project_data_reduced <- na.omit(project_data_reduced)
+dim(project_data_reduced) #1818x71
+
+pd.lm.reg <- lm(formula = int_rate~., data = project_data_reduced)
+summary(pd.lm.reg)
+##summary output
+
+save(project_data_reduced, file = "pdr2.csv")
+
+load("pdr2.csv")
+write.csv(project_data_reduced, file = "pdr2.csv")
+
+# Forward and Backward Stepwise Selection
+
+library(ISLR)
+library(leaps)
+regfit.fwd <- regsubsets(int_rate~.,data=project_data_reduced,method="forward")
+summary(regfit.fwd)
+#Gives 8 variables.
+#loan_amt, term, installment, inq_last_6mths, initial_list_status, total_rec_int,
+#all_util, percent_bc_gt_75
+summary(regfit.fwd)$rsq  #[1] 0.2687613 0.5093164 0.5400296 0.5608631 0.6442963 
+#0.6552247 0.6668790 0.6743383
+summary(regfit.fwd)$adjr2#[1] 0.2683586 0.5087757 0.5392689 0.5598943 0.6433148 
+#0.6540824 0.6655907 0.6728981
+#.6743 and .6729 are not very good
+regfit.bwd <- regsubsets(int_rate~.,data=project_data_reduced,method="backward")
+summary(regfit.bwd)
+#Gives 8 variables
+#loan_amnt, term, installment, inq_last_6mths, out_prncp_inv, total_rec_int, 
+#last_pymnt_amnt, percent_bc_gt_75
+summary(regfit.bwd)$rsq  #[1] 0.2687613 0.5093164 0.5281121 0.6191683 0.6457616 
+#0.6574723 0.6636294 0.6729394
+summary(regfit.bwd)$adjr2#[1] 0.2683586 0.5087757 0.5273317 0.6183281 0.6447841 
+#0.6563374 0.6623285 0.6714931
+#.6729 and .6715 are pretty similar
+
+#LOOCV
+pd.glm.fit <- glm(int_rate~.,data=project_data_reduced) #This is the standard linear regression
+summary(pd.glm.fit)
+##summary output
+
+#Cross Validation error
+
+library(boot)
+set.seed(42)
+pd.cv.err <- cv.glm(data = project_data_reduced,pd.glm.fit, K=1818) #K-fold cross validation prediction error.
+#for K = 1818 (LOOCV) it takes 1 minute 27 sec and produces 2 warnings: prediction from a rank-deficient fit may be misleading
+pd.cv.err
+pd.cv.err$delta #[1] 657,733,987.4 657,372,197.6
+
+#For K = 10
+set.seed(42)
+pd.cv.err.10 <- cv.glm(data = project_data_reduced,pd.glm.fit, K=10) #K-fold cross validation prediction error.
+#for K = 10 it takes 1 sec and produces 2 warnings: prediction from a rank-deficient fit may be misleading
+pd.cv.err.10
+pd.cv.err.10$delta #[1] 771,478,014.5 694,245,342.8 This is larger than for LOOCV
+#delta[1] is the average of the MSEs for each version of the separation
+#It's not quite the MSE for the whole cross validation, but it's close.
+
+#set up training and test sets
+set.seed(1)
+x_as_matrix <- model.matrix(object = int_rate~., data = project_data_reduced)[,-5] #becomes 1818x71
+y <- project_data_reduced$int_rate #length 1818
+train <- sample(1: nrow(x_as_matrix), nrow(x_as_matrix)/2) #length 909
+test=(-train) #length 909
+y.test=y[test] #length 909
+
+#Principal Components Regression
+library(pls)
+set.seed(2)
+pcr.fit <- pcr(int_rate~., data=project_data_reduced,scale=TRUE,validation="CV")
+summary(pcr.fit)
+##summary output
+
+#38 components to get to 95%. 64 components to get to 100%
+#Note the jump in the first table at 69 and 70 comps
+validationplot(pcr.fit,val.type="MSEP",ncomp=1:68)
+#if we include all the components then the graph is uninteresting to look at.
+#If we limit to 68 components (right before the MSEP jumps way up)
+#then we get a more interesting graph.
+#Minimum at 65 components. 2.882
+pcr.pred <- predict(pcr.fit,project_data_reduced[test,],ncomp=65) #65 components is the minimum MSEP
+int_rate1 <- as.matrix(int_rate)
+mean((pcr.pred-int_rate1[test,])^2) 
+#7.771255775 if ncomp = 65
+
+# Ridge Regression
+
+library(glmnet)
+set.seed(1)
+grid <- 10^seq(10,-2,length=100) #100 numbers in sequence from 10^10 to 10^-2
+ridge.mod <- glmnet(x_as_matrix[train,],y[train],alpha=0,lambda=grid, thresh = 1e-12) 
+dim(coef(ridge.mod)) #72x100
+
+ridge.pred <- predict(ridge.mod,s=0,newx=x_as_matrix[test,],exact=FALSE) #lambda = 0. This is a standard linear regression. Won't run if exact=TRUE
+mean((ridge.pred-y.test)^2) #17.6938
+lm(y~x_as_matrix, subset=train) #This is supposed to be the same, but I don't know how I'm supposed to tell that.
+
+predict(ridge.mod,s=0,exact=FALSE,type="coefficients") #Won't run with "exact=TRUE"
+set.seed(1)
+cv.out <- cv.glmnet(x_as_matrix[train,],y[train],alpha=0) #use cross validation to determine lambda
+plot(cv.out) #Looks nice
+bestlam <- cv.out$lambda.min #best lambda -> lowest MSE
+bestlam #best lambda is.3004931
+ridge.pred <- predict(ridge.mod,s=bestlam,newx=x_as_matrix[test,]) #run the ridge regression using the best lambda parameter we can find.
+mean((ridge.pred-y.test)^2) #gives an MSE of 9.633457078
+out <- glmnet(x_as_matrix,y,alpha=0) #refit the regression
+ridge.coef <- predict(out,type="coefficients",s=bestlam) #rerun the regression using our best lambda parameter
+ridge.coef
+#This is where I see two different intercepts
+
+# The Lasso
+lasso.mod <- glmnet(x_as_matrix[train,],y[train],alpha=1,lambda=grid)
+plot(lasso.mod) #pretty
+set.seed(1)
+cv.out <- cv.glmnet(x_as_matrix[train,],y[train],alpha=1) #find the test error for the lambda values using cross validation.
+plot(cv.out) #looks nice
+bestlam <- cv.out$lambda.min
+bestlam #.009393
+lasso.pred <- predict(lasso.mod,s=bestlam,newx=x_as_matrix[test,])
+mean((lasso.pred-y.test)^2) #17.6594 is the test error. About 83% larger than Ridge.
+out <- glmnet(x_as_matrix,y,alpha=1,lambda=grid)
+lasso.coef <- predict(out,type="coefficients",s=bestlam)
+lasso.coef
+#again two different intercepts
+
+# Partial Least Squares
+library(pls)
+set.seed(1)
+pls.fit <- plsr(int_rate~., data=project_data_reduced,subset=train,scale=TRUE, validation="CV") 
+summary(pls.fit)
+##summary output
+#lowest CV error is 2.699 for 54 through 63 components
+#100% variance at 66 comps. 95% at 48 comps
+validationplot(pls.fit,val.type="MSEP", ncomp=1:68)
+#tapers off and seems relatively level after 20 components (except for a blip at 67 or so)
+pls.pred <- predict(pls.fit,x_as_matrix[test,],ncomp=53) #ranges from 196.4479 to 7728.6823. That doesn't seem right.
+mean((pls.pred-y.test)^2) #13019854.7 #I suppose that could be the case, but it seems suspiciously high.
+pls.fit <- plsr(int_rate~., data=project_data_reduced,scale=TRUE,ncomp=54)
+summary(pls.fit)
+##summary output
+
+pls.pred <- predict(pls.fit ,x.test, ncomp=53)
+mean((pls.pred-y.test)^2)
+# [1] 25213809
+
+#Neural1
+set.seed(42)
+x.train <- x_as_matrix[train,] #dimensions: 909x71
+x.test <- x_as_matrix[test,]
+y.train <- y[train]
+y.test <- y[test]
+
+library(nnet)
+set.seed(42)
+reg.model.1 <- nnet(formula = int_rate~.,x = x.train,y = y.train,size=3,maxit=50,linout=TRUE)
+str(reg.model.1) #Stopped between 20 and 30 iterations. It's using 217 weights.
+
+set.seed(42)
+reg.model.2 <- nnet(formula = int_rate~.,x = x.train,y = y.train,size=71,maxit=50,linout=TRUE, MaxNWts = 6000)
+str(reg.model.2) #went for all 50 iterations. 909 fitted values. 5113 weights.
+
+#Can we get it to converge by allowing more iterations?
+set.seed(42)
+reg.model.3 <- nnet(formula = int_rate~.,x = x.train,y = y.train,size=71,maxit=100,linout=TRUE, MaxNWts = 6000)
+#100 isn't enough
+
+set.seed(42)
+reg.model.4 <- nnet(formula = int_rate~.,x = x.train,y = y.train,size=71,maxit=200,linout=TRUE, MaxNWts = 6000)
+#converged between 100 and 110.
+#length(unique(reg.model.4$fitted.values)) = 437. 909 total values
+
+#predict output and compute MSE.
+predict.model.4 <- predict(reg.model.4,data.frame(x.test))
+str(predict.model.4)
+rmse.reg <- sqrt(sum((y.test-predict.model.4)^2))
+rmse.reg #144.9847
+
+library(neuralnet)
+
+#need 5113 random starting weights
+set.seed(42)
+weight=runif(5113, -1, 1)
+
+#forward set
+limit_cols_fwd <- c("loan_amnt", "term", "installment", "inq_last_6mths", "initial_list_status", "total_rec_int", "all_util", "percent_bc_gt_75")
+project_data_reduced_fwd <- project_data_reduced[,(names(project_data_reduced) %in% limit_cols_fwd)]
+dim(project_data_reduced_fwd) #1818x8
+x.train.fwd <- project_data_reduced[train,(names(project_data_reduced) %in% limit_cols_fwd)]
+x.test.fwd <- project_data_reduced[test,(names(project_data_reduced) %in% limit_cols_fwd)]
+
+n_fwd <- names(project_data_reduced_fwd)
+f_fwd <- as.formula(paste("int_rate ~", paste(n_fwd[!n_fwd %in% "int_rate"], collapse = " + ")))
+f_fwd
+
+#backward set
+limit_cols_bwd <- c("loan_amnt", "term", "installment", "inq_last_6mths", "out_prncp_inv", "total_rec_int", "last_pymnt_amnt", "percent_bc_gt_75")
+project_data_reduced_bwd <- project_data_reduced[,(names(project_data_reduced) %in% limit_cols_bwd)]
+dim(project_data_reduced_bwd) #1818*8
+x.train.bwd <- project_data_reduced[train,(names(project_data_reduced) %in% limit_cols_bwd)]
+x.test.bwd <- project_data_reduced[test,(names(project_data_reduced) %in% limit_cols_bwd)]
+
+n_bwd <- names(project_data_reduced_bwd)
+f_bwd <- as.formula(paste("int_rate ~", paste(n_bwd[!n_bwd %in% "int_rate"], collapse = " + ")))
+f_bwd
+
+set.seed(42)
+model.neuralnet.fwd <- neuralnet(f_fwd, hidden=c(8,8,8), startweights = weight, learningrate = .0001, data = project_data_reduced[train,], lifesign = "full", lifesign.step = 500)
+
+set.seed(42)
+model.neuralnet.bwd <- neuralnet(f_bwd, hidden=c(8,8,8), startweights = weight, learningrate = .0001, data = project_data_reduced[train,], lifesign = "full", lifesign.step = 500, stepmax = 200000)
+
